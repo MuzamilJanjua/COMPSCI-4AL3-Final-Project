@@ -60,20 +60,22 @@ class ChessDataset(Dataset):
             # Scale Eval using StandardScaler
             moves_df = moves_df.fillna(0)
             scaler = StandardScaler()
-            # moves_df["Eval"] = scaler.fit_transform(moves_df["Eval"].values.reshape(-1, 1)).flatten()
+            moves_df["Eval"] = scaler.fit_transform(moves_df["Eval"].values.reshape(-1, 1)).flatten()
 
             # Normalize Time by dividing by initial time
             initial_time = moves_df["Time"].iloc[0]
             moves_df["Time"] = moves_df["Time"] / initial_time
 
             # Convert board states
-            moves_df["Board State"] = moves_df.apply(lambda row: fh.board_fen_to_image(row["Board State"]), axis=1)
+            # moves_df["Board State"] = moves_df.apply(lambda row: fh.board_fen_to_image(row["Board State"]), axis=1)
             return moves_df
 
         game_data["Moves"] = game_data.apply(lambda row: normalize_moves(row["Moves"]), axis=1)
 
-        self.board_states = game_data.apply(lambda row: row["Moves"]["Board State"].to_list(), axis=1)
-        self.moves = game_data.apply(lambda row: row["Moves"].drop(columns=["Board State"]).to_numpy(), axis=1).to_numpy()
+        # self.board_states = game_data.apply(lambda row: row["Moves"]["Board State"].to_list(), axis=1)
+        # self.board_states = []
+        # self.moves = game_data.apply(lambda row: row["Moves"].drop(columns=["Board State"]).to_numpy(), axis=1).to_numpy()
+        self.moves = game_data.apply(lambda row: row["Moves"].to_numpy(), axis=1).to_numpy()
 
         self.game_metadata = game_data.drop(columns=["Moves", "Result"]).to_numpy()
 
@@ -87,14 +89,15 @@ class ChessDataset(Dataset):
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # Convert to float32 when creating tensor
-        board_state_tensor = torch.tensor(np.array(self.board_states[idx]), dtype=torch.float32)
+        # board_state_tensor = torch.tensor(np.array(self.board_states[idx]), dtype=torch.float32)
         moves = self.moves[idx]
 
         if self.move_limit is not None:
             moves = moves[: self.move_limit]
-            board_state_tensor = board_state_tensor[: self.move_limit]
+            # board_state_tensor = board_state_tensor[: self.move_limit]
 
-        return self.game_metadata[idx], moves, board_state_tensor, self.labels[idx]
+        return self.game_metadata[idx], moves, self.labels[idx]
+        # return self.game_metadata[idx], moves, board_state_tensor, self.labels[idx]
 
 
 # TESTing dataset
@@ -109,94 +112,89 @@ class ChessNN(nn.Module):
     def __init__(self):
         super().__init__()
 
-        metadata_per_move = len(fh.MOVE_HEADER_NAMES) - 1
+        metadata_per_move = len(fh.MOVE_HEADER_NAMES)  # - 1
         metadata_per_game = len(fh.HEADERS_TO_KEEP) - 1
 
-        # Enhanced CNN with residual connections and more features
-        self.board_cnn = nn.Sequential(
-            # Initial feature extraction
-            nn.Conv2d(12, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-            
-            # First residual block
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(128, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(),
-            
-            # Second residual block
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Conv2d(256, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(),
-            
-            # Global features
-            nn.AdaptiveAvgPool2d((4, 4)),
-            nn.Dropout2d(0.3)
-        )
+        # # Enhanced CNN with residual connections and more features
+        # self.board_cnn = nn.Sequential(
+        #     # Initial feature extraction
+        #     nn.Conv2d(12, 64, kernel_size=3, padding=1),
+        #     nn.BatchNorm2d(64),
+        #     nn.ReLU(),
 
-        # Increased CNN output dimension
-        self.flatten_cnn_output = nn.Linear(256 * 4 * 4, 512)
+        #     # First residual block
+        #     nn.Conv2d(64, 128, kernel_size=3, padding=1),
+        #     nn.BatchNorm2d(128),
+        #     nn.ReLU(),
+        #     nn.Conv2d(128, 128, kernel_size=3, padding=1),
+        #     nn.BatchNorm2d(128),
+        #     nn.ReLU(),
+
+        #     # Second residual block
+        #     nn.Conv2d(128, 256, kernel_size=3, padding=1),
+        #     nn.BatchNorm2d(256),
+        #     nn.ReLU(),
+        #     nn.Conv2d(256, 256, kernel_size=3, padding=1),
+        #     nn.BatchNorm2d(256),
+        #     nn.ReLU(),
+
+        #     # Global features
+        #     nn.AdaptiveAvgPool2d((4, 4)),
+        #     nn.Dropout2d(0.3)
+        # )
+
+        # # Increased CNN output dimension
+        # self.flatten_cnn_output = nn.Linear(256 * 4 * 4, 512)
 
         # Rest of the architecture remains the same
         self.rnn = nn.LSTM(
-            input_size=512 + metadata_per_move, 
-            hidden_size=256, 
-            num_layers=2, 
-            batch_first=True, 
-            bidirectional=True, 
-            dropout=0.3
+            # input_size=512 + metadata_per_move,
+            input_size=metadata_per_move,
+            hidden_size=256,
+            num_layers=2,
+            batch_first=True,
+            bidirectional=True,
+            dropout=0.3,
         )
 
-        self.fc = nn.Sequential(
-            nn.Linear(256 * 2, 256), 
-            nn.ReLU(), 
-            nn.Dropout(0.4)
-        )
-
-        self.fc2 = nn.Sequential(
-            nn.Linear(256 + metadata_per_game, 128), 
-            nn.ReLU(), 
-            nn.Dropout(0.4)
-        )
-
+        self.fc = nn.Sequential(nn.Linear(256 * 2, 256), nn.ReLU(), nn.Dropout(0.4))
+        self.fc2 = nn.Sequential(nn.Linear(256 + metadata_per_game, 128), nn.ReLU(), nn.Dropout(0.4))
         self.fc3 = nn.Linear(128, 3)
 
-    def forward(self, game_metadata, moves, board_states, lengths):
+    def forward(self, game_metadata, moves, lengths):
         # Get batch and sequence dimensions
-        batch_size, seq_len, _, _, _ = board_states.size()
-        
+        # batch_size, seq_len, _, _, _ = board_states.size()
+
         # Reshape board states to process all positions at once
-        board_states_reshaped = board_states.view(-1, 12, 8, 8)  # Combine batch and sequence dims
-        
-        # Process through CNN more efficiently
-        cnn_out = self.board_cnn(board_states_reshaped)
-        cnn_out = self.flatten_cnn_output(cnn_out.view(batch_size * seq_len, -1))
-        cnn_out = cnn_out.view(batch_size, seq_len, -1)  # Reshape back to sequence format
-        
-        # Combine CNN output with moves data
-        combined_features = torch.cat((cnn_out, moves), dim=2)
-        
+        # board_states_reshaped = board_states.view(-1, 12, 8, 8)  # Combine batch and sequence dims
+
+        # # Process through CNN more efficiently
+        # cnn_out = self.board_cnn(board_states_reshaped)
+        # cnn_out = self.flatten_cnn_output(cnn_out.view(batch_size * seq_len, -1))
+        # cnn_out = cnn_out.view(batch_size, seq_len, -1)  # Reshape back to sequence format
+
+        # # Combine CNN output with moves data
+        # combined_features = torch.cat((cnn_out, moves), dim=2)
+
         # Pack and process through RNN
-        packed_features = pack_padded_sequence(combined_features, lengths.to("cpu"), batch_first=True, enforce_sorted=False)
+        # packed_features = pack_padded_sequence(combined_features, lengths.to("cpu"), batch_first=True, enforce_sorted=False)
+
+        # print(moves.size())
+        # print(moves[0])
+        packed_features = pack_padded_sequence(moves, lengths.to("cpu"), batch_first=True, enforce_sorted=False)
         packed_rnn_out, _ = self.rnn(packed_features)
         rnn_out, _ = pad_packed_sequence(packed_rnn_out, batch_first=True)
-        
+
         # Get last valid output for each sequence
         idx = (lengths - 1).clone().detach().to(device=rnn_out.device).unsqueeze(1).unsqueeze(2).expand(-1, 1, rnn_out.size(2)).long()
         last_rnn_out = rnn_out.gather(1, idx).squeeze(1)
-        
+
         # Final prediction layers
         output = self.fc(last_rnn_out)
         output = torch.cat((output, game_metadata), dim=1)
         output = self.fc2(output)
         output = self.fc3(output)
-        
+
         return output
 
 
@@ -209,19 +207,19 @@ def test_loss(model: nn.Module, test_loader: DataLoader, loss_function: nn.modul
 
     # No backpropagation calculations needed
     with torch.no_grad():
-        for data, moves, board_states, target, lengths in test_loader:
+        for data, moves, target, lengths in test_loader:
 
             # Move data to GPU if applicable
             data = data.to(device).float()
             moves = moves.to(device).float()
-            board_states = board_states.to(device).float()
+            # board_states = board_states.to(device).float()
             lengths = lengths.to(device).float()
             target = target.to(device).long()
 
             model.eval()
 
             # Predict the data, get the loss based on the prediction
-            output = model(data, moves, board_states, lengths)
+            output = model(data, moves, lengths)
             loss = loss_function(output, target.long())
             test_loss += loss.item()
 
@@ -238,17 +236,17 @@ def predict(model: nn.Module, test_loader: DataLoader) -> list[int]:
 
     # No backpropagation calculations needed
     with torch.no_grad():
-        for data, moves, board_states, target, lengths in test_loader:
+        for data, moves, target, lengths in test_loader:
 
             # Move data to GPU if applicable
             data = data.to(device).float()
             moves = moves.to(device).float()
-            board_states = board_states.to(device).float()
+            # board_states = board_states.to(device).float()
             lengths = lengths.to(device).float()  # Use lengths directly
 
             model.eval()
             # Predict the data
-            output = model(data, moves, board_states, lengths)
+            output = model(data, moves, lengths)
 
             # Index of the highest value in the predicted tensor will be our chosen class
             _, predicted = torch.max(output.data, 1)
@@ -303,11 +301,11 @@ def train(
         #     ),
         # )
 
-        for i, (data, moves, board_states, target, lengths) in enumerate(train_loader):
+        for i, (data, moves, target, lengths) in enumerate(train_loader):
             # Move data to GPU if applicable
             data = data.to(device).float()
             moves = moves.to(device).float()
-            board_states = board_states.to(device).float()
+            # board_states = board_states.to(device).float()
             target = target.to(device).long()
             lengths = lengths.to(device).float()
 
@@ -315,7 +313,7 @@ def train(
             optimizer.zero_grad()
 
             # Predict the data
-            output = model(data, moves, board_states, lengths)
+            output = model(data, moves, lengths)
 
             # print(f"Output shape: {output.shape}")
             # print(f"Output sample: {output[0]}")
@@ -340,13 +338,13 @@ def train(
         train_accuracy.append(
             pm.accuracy(
                 predict(model, train_loader),
-                flatten([label[3] for label in train_loader]),
+                flatten([label[2] for label in train_loader]),
             )
         )
         test_accuracy.append(
             pm.accuracy(
                 predict(model, test_loader),
-                flatten([label[3] for label in test_loader]),
+                flatten([label[2] for label in test_loader]),
             )
         )
 
@@ -381,30 +379,32 @@ def collate_fn(batch):
     # Extract individual components from the batch
     data = [item[0] for item in batch]
     moves = [item[1] for item in batch]
-    board_states = [item[2] for item in batch]
-    labels = [item[3] for item in batch]
+    # board_states = [item[2] for item in batch]
+    labels = [item[2] for item in batch]
 
     # Check for zero values in board_states and replace them with a suitable value (e.g., 1)
     # This assumes the board state should not have 0 values and replacing 0 with 1 makes sense in your case
     # Check for zero values in board_states and replace them with a suitable value (e.g., 1)
-    for i, bs in enumerate(board_states):
+    for i, bs in enumerate(moves):
         if len(bs) == 0:
             print(f"Warning: board_state at index {i} is empty.")
         # Check if the elements in the board state are valid (no None or invalid data)
         if any(val is None for row in bs for val in row):
             print(f"Warning: board_state at index {i} contains None values.")
 
-    lengths = torch.tensor([len(bs) for bs in board_states], dtype=torch.int32)
+    lengths = torch.tensor([len(bs) for bs in moves], dtype=torch.int32)
 
     # Pad sequences and ensure float32 dtype
     data_padded = pad_sequence([torch.tensor(d, dtype=torch.float32) for d in data], batch_first=True, padding_value=0)
     moves_padded = pad_sequence([torch.tensor(m, dtype=torch.float32) for m in moves], batch_first=True, padding_value=0)
-    board_states_padded = pad_sequence([bs.clone().detach().to(torch.float32) for bs in board_states], batch_first=True, padding_value=0)
+    # board_states_padded = pad_sequence([bs.clone().detach().to(torch.float32) for bs in board_states], batch_first=True, padding_value=0)
+    # board_states_padded = pad_sequence([[] for bs in board_states], batch_first=True, padding_value=0)
 
     # Stack labels into a single tensor
     labels_stacked = torch.stack([l.clone().detach() for l in labels])
 
-    return data_padded, moves_padded, board_states_padded, labels_stacked, lengths
+    return data_padded, moves_padded, labels_stacked, lengths
+    # return data_padded, moves_padded, board_states_padded, labels_stacked, lengths
 
 
 def printPerformaceMetrics(model, test_loader):
@@ -412,7 +412,7 @@ def printPerformaceMetrics(model, test_loader):
     y_test = []
 
     # Extract ground truth labels and flatten them
-    for data, moves, board_states, target, lengths in test_loader:
+    for data, moves, target, lengths in test_loader:
         y_test.extend(target.tolist())  # Convert target tensor to a list of labels
 
     # Now you can use these for metrics

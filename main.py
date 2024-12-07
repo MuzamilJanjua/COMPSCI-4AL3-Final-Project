@@ -58,19 +58,19 @@ def main(parent_dir: str, src_file: str) -> None:
     model.to(ml.device)
 
     # Initialize the data loaders, using a batch size of 128
-    batch_size = 32
+    batch_size = 256
     train_loader = DataLoader(train_set_split, batch_size=batch_size, collate_fn=ml.collate_fn)
     validation_loader = DataLoader(validation_set_split, batch_size=batch_size, collate_fn=ml.collate_fn)
     test_loader = DataLoader(test_data, batch_size=batch_size, collate_fn=ml.collate_fn)
 
     # Calculate class weights
-    class_counts = torch.bincount(torch.tensor([int(label) for label in game_dataset.labels[train_set_split.indices]]))
-    class_weights = 1.0 / class_counts
-    class_weights = class_weights / class_weights.sum()
-    class_weights = class_weights.to(ml.device)
+    # class_counts = torch.bincount(torch.tensor([int(label) for label in game_dataset.labels[train_set_split.indices]]))
+    # class_weights = 1.0 / class_counts
+    # class_weights = class_weights / class_weights.sum()
+    # class_weights = class_weights.to(ml.device)
 
     # Use weighted loss
-    loss_function = nn.CrossEntropyLoss(weight=class_weights)
+    loss_function = nn.CrossEntropyLoss()  # weight=class_weights)
 
     # Train the model
     train_losses, validation_losses, train_accuracy, validation_accuracy = ml.train(
@@ -78,8 +78,8 @@ def main(parent_dir: str, src_file: str) -> None:
         loss_function=loss_function,
         train_loader=train_loader,
         test_loader=validation_loader,
-        print_every=2,
-        learning_rate=0.005,
+        print_every=10,
+        learning_rate=0.01,
         epoch=200,
     )
 
