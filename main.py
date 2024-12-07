@@ -78,8 +78,8 @@ def main(parent_dir: str, src_file: str) -> None:
         loss_function=loss_function,
         train_loader=train_loader,
         test_loader=validation_loader,
-        print_every=10,
-        learning_rate=0.01,
+        print_every=2,
+        learning_rate=0.005,
         epoch=200,
     )
 
