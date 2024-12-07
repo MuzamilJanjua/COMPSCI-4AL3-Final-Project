@@ -60,7 +60,7 @@ class ChessDataset(Dataset):
             # Scale Eval using StandardScaler
             moves_df = moves_df.fillna(0)
             scaler = StandardScaler()
-            moves_df["Eval"] = scaler.fit_transform(moves_df["Eval"].values.reshape(-1, 1)).flatten()
+            # moves_df["Eval"] = scaler.fit_transform(moves_df["Eval"].values.reshape(-1, 1)).flatten()
 
             # Normalize Time by dividing by initial time
             initial_time = moves_df["Time"].iloc[0]
@@ -78,7 +78,7 @@ class ChessDataset(Dataset):
         self.game_metadata = game_data.drop(columns=["Moves", "Result"]).to_numpy()
 
         # Scale game metadata
-        self.game_metadata = StandardScaler().fit_transform(self.game_metadata)
+        # self.game_metadata = StandardScaler().fit_transform(self.game_metadata)
 
         self.move_limit = only_use_first_X_moves
 

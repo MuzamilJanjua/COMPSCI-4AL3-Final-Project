@@ -9,8 +9,8 @@ from typing import Iterable
 HEADERS_TO_KEEP = sorted(
     [
         "Result",
-        "WhiteElo",
-        "BlackElo",
+        # "WhiteElo",
+        # "BlackElo",
         # "TimeControl", # TODO maybe add these back once we have a working architecture
         # "Termination",
     ]
@@ -19,7 +19,7 @@ MOVE_HEADER_NAMES = [
     "Player",
     # "Move (SAN)", # This info already in board state
     # "Move (UCI)",
-    "Eval",
+    # "Eval",
     "Time",
     "Board State",
 ]
@@ -55,8 +55,8 @@ def filter_headers(game: pgn.Game) -> dict[str, str | int]:
     """
 
     game_headers: dict[str, str | int] = dict(filter(lambda elem: elem[0] in HEADERS_TO_KEEP, game.headers.items()))
-    game_headers["BlackElo"] = int(game_headers["BlackElo"])  # TODO add these back
-    game_headers["WhiteElo"] = int(game_headers["WhiteElo"])
+    # game_headers["BlackElo"] = int(game_headers["BlackElo"])  # TODO add these back
+    # game_headers["WhiteElo"] = int(game_headers["WhiteElo"])
 
     if game_headers["Result"] == "1-0":
         game_headers["Result"] = 1 + 1
@@ -108,8 +108,8 @@ def move_to_tuple(move: pgn.ChildNode) -> tuple[str, str, float | None, int | No
             clk_c = sum([a * b for a, b in zip(ftr, map(int, clk_c_s.split(":")))])
 
     # return (move.board().fen(),)
-    # return clk_c, move.board().fen()
-    return eval_c, clk_c, move.board().fen()
+    return clk_c, move.board().fen()
+    # return eval_c, clk_c, move.board().fen()
     # return move.san(), move.uci(), eval_c, clk_c, move.board().fen()
 
 
